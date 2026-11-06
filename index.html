@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SANY Barcode Scanner</title>
+
+<script src="https://unpkg.com/html5-qrcode"></script>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 18px;
+  font-family: Arial, sans-serif;
+  background: #eef2f7;
+  color: #172033;
+}
+
+.app {
+  max-width: 480px;
+  margin: auto;
+}
+
+.header {
+  background: #12345a;
+  color: white;
+  text-align: center;
+  padding: 24px;
+  border-radius: 16px;
+}
+
+.card {
+  background: white;
+  margin-top: 16px;
+  padding: 18px;
+  border-radius: 14px;
+}
+
+button {
+  width: 100%;
+  padding: 15px;
+  border: none;
+  border-radius: 10px;
+  margin-top: 12px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.primary { background: #1769aa; color: white; }
+.secondary { background: #e5ebf2; color: #172033; }
+
+#reader {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 12px;
+  margin-top: 12px;
+}
+
+#result {
+  font-size: 21px;
+  font-weight: bold;
+  overflow-wrap: anywhere;
+}
+
+#message {
+  padding: 12px;
+  background: #edf2f7;
+  border-radius: 8px;
+  margin-top: 12px;
+}
+
+#photo { display: none; }
+</style>
+</head>
+
+<body>
+<div class="app">
+
+  <div class="header">
+    <h2>SANY BARCODE SCANNER</h2>
+    <div>DO Monitoring System</div>
+  </div>
+
+  <div class="card">
+    <h3>SCAN BARCODE DO</h3>
+
+    <div id="reader"></div>
+
+    <button class="primary" onclick="startScan()">
+      MULAI SCAN
+    </button>
+
+    <button class="secondary" onclick="stopScan()">
+      STOP KAMERA
+    </button>
+  </div>
+
+  <div class="card">
+    <h3>HASIL SCAN</h3>
+
+    <div id="result">Menunggu scan...</div>
+    <div id="message">Siap digunakan.</div>
+
+    <button class="secondary" onclick="document.getElementById('photo').click()">
+      📷 AMBIL FOTO DOKUMEN
+    </button>
+
+    <input id="photo" type="file"
+      accept="image/*" capture="environment"
+      onchange="photoSelected(event)">
+  </div>
+
+</div>
+
+<script>
+let scanner = null;
+let scanning = false;
+
+const result = document.getElementById("result");
+const message = document.getElementById("message");
+
+function startScan() {
+  if (scanning) return;
+
+  if (!window.Html5Qrcode) {
+    message.textContent = "Library scanner gagal dimuat.";
+    return;
+  }
+
+  scanner = new Html5Qrcode("reader", {
+    formatsToSupport: [
+      Html5QrcodeSupportedFormats.QR_CODE,
+      Html5QrcodeSupportedFormats.CODE_128
+    ]
+  });
+
+  message.textContent = "Meminta akses kamera...";
+
+  scanner.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: { width: 250, height: 150 } },
+    async (decodedText) => {
+      if (!scanning) return;
+
+      scanning = false;
+      result.textContent = decodedText;
+      message.textContent = "Barcode berhasil dibaca!";
+
+      await scanner.stop();
+    },
+    () => {}
+  ).then(() => {
+    scanning = true;
+    message.textContent = "Kamera aktif. Arahkan ke barcode DO.";
+  }).catch(error => {
+    scanning = false;
+    message.textContent = "Error kamera: " + error;
+  });
+}
+
+async function stopScan() {
+  if (scanner && scanning) {
+    scanning = false;
+    await scanner.stop();
+    message.textContent = "Kamera dihentikan.";
+  }
+}
+
+function photoSelected(event) {
+  const file = event.target.files[0];
+
+  if (file) {
+    message.textContent =
+      "Foto dipilih: " + file.name +
+      ". Upload Google Drive akan diaktifkan pada tahap integrasi.";
+  }
+}
+</script>
+
+</body>
+</html>
