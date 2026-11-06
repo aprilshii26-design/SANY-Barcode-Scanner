@@ -3,75 +3,93 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SANY Barcode Scanner</title>
-
+<title>SANY BARCODE SCANNER</title>
 <script src="https://unpkg.com/html5-qrcode"></script>
 
 <style>
-* { box-sizing: border-box; }
-
+* { box-sizing:border-box; }
 body {
-  margin: 0;
-  padding: 18px;
-  font-family: Arial, sans-serif;
-  background: #eef2f7;
-  color: #172033;
+  margin:0;
+  padding:18px;
+  background:#eef2f7;
+  color:#172033;
+  font-family:Arial,sans-serif;
 }
-
-.app {
-  max-width: 480px;
-  margin: auto;
-}
-
+.app { max-width:480px; margin:auto; }
 .header {
-  background: #12345a;
-  color: white;
-  text-align: center;
-  padding: 24px;
-  border-radius: 16px;
+  background:#153657;
+  color:white;
+  text-align:center;
+  padding:24px 12px;
+  border-radius:16px;
 }
-
 .card {
-  background: white;
-  margin-top: 16px;
-  padding: 18px;
-  border-radius: 14px;
+  background:white;
+  margin-top:16px;
+  padding:18px;
+  border-radius:16px;
 }
-
+h3 { font-size:19px; }
 button {
-  width: 100%;
-  padding: 15px;
-  border: none;
-  border-radius: 10px;
-  margin-top: 12px;
-  font-weight: bold;
-  cursor: pointer;
+  width:100%;
+  padding:15px;
+  border:0;
+  border-radius:10px;
+  margin-top:10px;
+  font-weight:bold;
+  font-size:15px;
+  cursor:pointer;
 }
-
-.primary { background: #1769aa; color: white; }
-.secondary { background: #e5ebf2; color: #172033; }
-
+.primary { background:#1769aa;color:white; }
+.secondary { background:#e5ebf2;color:#172033; }
+.danger { background:#ffe5e5;color:#a32222; }
+button:disabled { opacity:.5; }
 #reader {
-  width: 100%;
-  overflow: hidden;
-  border-radius: 12px;
-  margin-top: 12px;
+  width:100%;
+  overflow:hidden;
+  border-radius:12px;
+  margin:12px 0;
 }
-
 #result {
-  font-size: 21px;
-  font-weight: bold;
-  overflow-wrap: anywhere;
+  background:#edf2f7;
+  padding:14px;
+  border-radius:9px;
+  font-size:21px;
+  font-weight:bold;
+  overflow-wrap:anywhere;
 }
-
 #message {
-  padding: 12px;
-  background: #edf2f7;
-  border-radius: 8px;
-  margin-top: 12px;
+  background:#edf2f7;
+  padding:12px;
+  border-radius:9px;
+  margin-top:12px;
+  font-size:14px;
+  overflow-wrap:anywhere;
 }
-
-#photo { display: none; }
+.photo-grid {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:9px;
+  margin-top:12px;
+}
+.photo-item {
+  position:relative;
+  min-width:0;
+}
+.photo-item img {
+  width:100%;
+  aspect-ratio:1;
+  object-fit:cover;
+  border-radius:9px;
+}
+.photo-item button {
+  padding:7px;
+  margin-top:4px;
+  font-size:12px;
+}
+.photo-count { color:#1769aa;font-weight:bold; }
+.hidden { display:none; }
+#photoCamera,#photoGallery { display:none; }
 </style>
 </head>
 
@@ -88,7 +106,7 @@ button {
 
     <div id="reader"></div>
 
-    <button class="primary" onclick="startScan()">
+    <button class="primary" id="startBtn" onclick="startScan()">
       MULAI SCAN
     </button>
 
@@ -99,84 +117,319 @@ button {
 
   <div class="card">
     <h3>HASIL SCAN</h3>
-
     <div id="result">Menunggu scan...</div>
-    <div id="message">Siap digunakan.</div>
 
-    <button class="secondary" onclick="document.getElementById('photo').click()">
+    <h3>FOTO DOKUMEN</h3>
+    <div class="photo-count" id="photoCount">
+      0 foto dipilih
+    </div>
+
+    <button class="primary" onclick="document.getElementById('photoCamera').click()">
       📷 AMBIL FOTO DOKUMEN
     </button>
 
-    <input id="photo" type="file"
-      accept="image/*" capture="environment"
-      onchange="photoSelected(event)">
+    <button class="secondary" onclick="document.getElementById('photoGallery').click()">
+      🖼 PILIH BANYAK FOTO DARI GALERI
+    </button>
+
+    <input id="photoCamera" type="file"
+      accept="image/*" capture="environment">
+
+    <input id="photoGallery" type="file"
+      accept="image/*" multiple>
+
+    <div class="photo-grid" id="photoGrid"></div>
+
+    <div id="message">Siap digunakan.</div>
+
+    <button class="primary" id="saveBtn" onclick="saveScan()">
+      SIMPAN DO + SEMUA FOTO
+    </button>
   </div>
 
 </div>
 
+<!-- Penghubung ke Google Apps Script -->
+<iframe name="backendFrame" id="backendFrame"
+  style="display:none"></iframe>
+
+<form id="backendForm" method="POST"
+  target="backendFrame"
+  action="https://script.google.com/macros/s/AKfycbwUk2aluccFwaLyYeu7h9pOGenqOWWrGGjVcREJdyxnqUl8a6InK_KYHLnIpYQ8D-L7jQ/exec">
+  <input type="hidden" name="payload" id="payload">
+</form>
+
 <script>
+const photos = [];
 let scanner = null;
 let scanning = false;
+let saving = false;
+let pendingRequest = false;
+let requestTimeout = null;
 
 const result = document.getElementById("result");
 const message = document.getElementById("message");
+const saveBtn = document.getElementById("saveBtn");
 
-function startScan() {
+function showMessage(text) {
+  message.textContent = text;
+}
+
+// SCANNER
+async function startScan() {
   if (scanning) return;
 
   if (!window.Html5Qrcode) {
-    message.textContent = "Library scanner gagal dimuat.";
+    showMessage("Library barcode gagal dimuat.");
     return;
   }
 
-  scanner = new Html5Qrcode("reader", {
-    formatsToSupport: [
-      Html5QrcodeSupportedFormats.QR_CODE,
-      Html5QrcodeSupportedFormats.CODE_128
-    ]
-  });
+  try {
+    if (!scanner) {
+      scanner = new Html5Qrcode("reader", {
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.QR_CODE
+        ]
+      });
+    }
 
-  message.textContent = "Meminta akses kamera...";
+    showMessage("Meminta izin kamera...");
 
-  scanner.start(
-    { facingMode: "environment" },
-    { fps: 10, qrbox: { width: 250, height: 150 } },
-    async (decodedText) => {
-      if (!scanning) return;
+    await scanner.start(
+      { facingMode:"environment" },
+      {
+        fps:10,
+        qrbox:{ width:250, height:150 }
+      },
+      async (decodedText) => {
+        if (!scanning) return;
 
-      scanning = false;
-      result.textContent = decodedText;
-      message.textContent = "Barcode berhasil dibaca!";
+        scanning = false;
+        result.textContent = decodedText;
+        showMessage("Barcode terbaca: " + decodedText);
 
-      await scanner.stop();
-    },
-    () => {}
-  ).then(() => {
+        try {
+          await scanner.stop();
+        } catch(e) {}
+      },
+      () => {}
+    );
+
     scanning = true;
-    message.textContent = "Kamera aktif. Arahkan ke barcode DO.";
-  }).catch(error => {
+    showMessage("Kamera aktif. Arahkan ke barcode DO.");
+
+  } catch(error) {
     scanning = false;
-    message.textContent = "Error kamera: " + error;
-  });
+    showMessage("Error kamera: " + error);
+  }
 }
 
 async function stopScan() {
-  if (scanner && scanning) {
-    scanning = false;
+  if (!scanner || !scanning) return;
+
+  scanning = false;
+
+  try {
     await scanner.stop();
-    message.textContent = "Kamera dihentikan.";
+    showMessage("Kamera dihentikan.");
+  } catch(error) {
+    showMessage("Kamera sudah berhenti.");
   }
 }
 
-function photoSelected(event) {
-  const file = event.target.files[0];
+// KOMPRESI FOTO
+async function compressPhoto(file) {
+  return new Promise((resolve,reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
 
-  if (file) {
-    message.textContent =
-      "Foto dipilih: " + file.name +
-      ". Upload Google Drive akan diaktifkan pada tahap integrasi.";
-  }
+    img.onload = () => {
+      const maxSize = 1600;
+      const ratio = Math.min(
+        1,
+        maxSize / Math.max(img.width,img.height)
+      );
+
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * ratio);
+      canvas.height = Math.round(img.height * ratio);
+
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+
+      const data = canvas.toDataURL("image/jpeg",0.72);
+
+      URL.revokeObjectURL(url);
+      resolve(data);
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Foto gagal dibaca."));
+    };
+
+    img.src = url;
+  });
 }
+
+// TAMBAH FOTO
+async function addFiles(fileList) {
+  const files = Array.from(fileList || []);
+
+  if (!files.length) return;
+
+  showMessage("Memproses " + files.length + " foto...");
+
+  for (const file of files) {
+    try {
+      if (!file.type.startsWith("image/")) continue;
+
+      const data = await compressPhoto(file);
+
+      photos.push({
+        data:data,
+        name:file.name
+      });
+
+    } catch(error) {
+      showMessage("Ada foto yang gagal diproses: " + file.name);
+    }
+  }
+
+  renderPhotos();
+  showMessage("Foto siap. Total " + photos.length + " foto.");
+}
+
+document.getElementById("photoCamera")
+  .addEventListener("change", async function() {
+    await addFiles(this.files);
+    this.value = "";
+  });
+
+document.getElementById("photoGallery")
+  .addEventListener("change", async function() {
+    await addFiles(this.files);
+    this.value = "";
+  });
+
+// PREVIEW DAN HAPUS FOTO
+function renderPhotos() {
+  const grid = document.getElementById("photoGrid");
+  grid.innerHTML = "";
+
+  document.getElementById("photoCount").textContent =
+    photos.length + " foto dipilih";
+
+  photos.forEach((photo,index) => {
+    const item = document.createElement("div");
+    item.className = "photo-item";
+
+    const img = document.createElement("img");
+    img.src = photo.data;
+
+    const btn = document.createElement("button");
+    btn.className = "danger";
+    btn.textContent = "Hapus";
+    btn.onclick = () => {
+      photos.splice(index,1);
+      renderPhotos();
+      showMessage("Foto berhasil dihapus dari daftar.");
+    };
+
+    const label = document.createElement("div");
+    label.style.fontSize = "11px";
+    label.textContent = "Foto " + (index+1);
+
+    item.append(img,label,btn);
+    grid.appendChild(item);
+  });
+}
+
+// KIRIM KE GOOGLE APPS SCRIPT
+function sendRequest(payload) {
+  if (pendingRequest) {
+    showMessage("Masih ada proses penyimpanan.");
+    return;
+  }
+
+  pendingRequest = true;
+  saving = true;
+  saveBtn.disabled = true;
+
+  showMessage("Mengirim data ke Google...");
+
+  document.getElementById("payload").value =
+    JSON.stringify(payload);
+
+  document.getElementById("backendForm").submit();
+
+  requestTimeout = setTimeout(() => {
+    if (pendingRequest) {
+      pendingRequest = false;
+      saving = false;
+      saveBtn.disabled = false;
+
+      showMessage(
+        "Belum menerima konfirmasi. Jangan scan ulang dulu. Periksa Spreadsheet sebelum mencoba kembali."
+      );
+    }
+  },120000);
+}
+
+// SIMPAN DO DAN FOTO
+function saveScan() {
+  const doNumber = result.textContent.trim();
+
+  if (!doNumber || doNumber === "Menunggu scan...") {
+    showMessage("Scan DO terlebih dahulu.");
+    return;
+  }
+
+  if (saving) return;
+
+  sendRequest({
+    action:"submitScan",
+    doNumber:doNumber,
+    photos:photos.map(photo => photo.data)
+  });
+}
+
+// TERIMA JAWABAN BACKEND
+window.addEventListener("message", function(event) {
+  if (event.source !==
+      document.getElementById("backendFrame").contentWindow) {
+    return;
+  }
+
+  if (!pendingRequest) return;
+
+  clearTimeout(requestTimeout);
+  pendingRequest = false;
+  saving = false;
+  saveBtn.disabled = false;
+
+  const response = event.data;
+
+  if (!response || typeof response.success !== "boolean") {
+    showMessage("Respons backend tidak valid. Periksa Spreadsheet.");
+    return;
+  }
+
+  if (response.success) {
+    showMessage(
+      response.message +
+      " DO: " + response.doNumber +
+      ". Foto tersimpan: " + response.totalPhotos
+    );
+
+    photos.length = 0;
+    renderPhotos();
+
+  } else {
+    showMessage(response.message || "Penyimpanan gagal.");
+  }
+});
 </script>
 
 </body>
