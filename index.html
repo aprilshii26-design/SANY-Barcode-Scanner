@@ -689,36 +689,6 @@ window.addEventListener("message", event => {
     );
   }
 });
-    const frame = document.getElementById("backendFrame");
-
-    if (event.source !== frame.contentWindow) return;
-
-    const result = event.data;
-
-    if (!result || typeof result.success !== "boolean") return;
-
-    clearTimeout(requestTimeout);
-
-    saving = false;
-    document.getElementById("saveButton").disabled = false;
-
-    if (result.success) {
-      showStatus(
-        result.message +
-        " DO: " + result.doNumber +
-        " | Jumlah foto: " + result.totalPhotos,
-        "ok"
-      );
-
-      document.getElementById("doNumber").value = "";
-
-      photos = [];
-      renderPhotos();
-
-    } else {
-      showStatus(result.message || "Data gagal disimpan.", "error");
-    }
-  });
 
 
   // Simpan DO
