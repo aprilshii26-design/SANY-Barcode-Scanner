@@ -640,50 +640,6 @@
 
   // Terima respons dari Apps Script
 window.addEventListener("message", event => {
-window.addEventListener("message", event => {
-  let result = event.data;
-
-  // Baca respons JSON jika dikirim sebagai teks
-  if (typeof result === "string") {
-    try {
-      result = JSON.parse(result);
-    } catch (error) {
-      return;
-    }
-  }
-
-  // Hanya proses respons dengan format yang diharapkan
-  if (
-    !result ||
-    typeof result.success !== "boolean"
-  ) {
-    return;
-  }
-
-  clearTimeout(requestTimeout);
-
-  saving = false;
-  document.getElementById("saveButton").disabled = false;
-
-  if (result.success) {
-    showStatus(
-      "BERHASIL! DO " + result.doNumber +
-      " sudah tersimpan. Jumlah foto: " +
-      result.totalPhotos,
-      "ok"
-    );
-
-    document.getElementById("doNumber").value = "";
-    photos = [];
-    renderPhotos();
-
-  } else {
-    showStatus(
-      result.message || "Data gagal disimpan.",
-      "error"
-    );
-  }
-});
   let result = event.data;
 
   // Antisipasi jika respons diterima sebagai teks
