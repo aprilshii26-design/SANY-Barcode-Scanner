@@ -640,9 +640,6 @@
 
 // Terima respons dari Apps Script
 window.addEventListener("message", function(event) {
-  const frame = document.getElementById("backendFrame");
-
-  if (!frame || event.source !== frame.contentWindow) return;
 
   let result = event.data;
 
